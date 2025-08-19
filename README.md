@@ -5,7 +5,7 @@ AutoGeoRef wurde entwickelt, um die Georeferenzierung von Flurkarten zu vereinfa
 AutoGeoRef bietet folgende Funktionen:
 - Automatische Georeferenzierung über Sektionspunkte
 - Zuschneiden auf die Randlinie der Karte (auch für bereits georeferenzierte Karten)
-- Export der Daten als World-Datei oder GeoTIFF und Komprimierung der Bilddateien
+- Export und Umwandlung der Daten in World-Datei oder GeoTIFF und Komprimierung der Bilddateien
 - Verarbeitung von großen Datenmengen durch Batch-Verarbeitung
 portable .exe-Datei wodurch keine Installation nötig ist.
 ## Installationsanleitung
