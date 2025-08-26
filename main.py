@@ -9,6 +9,7 @@ import threading
 import cv2
 import Crop_Image
 import shutil
+import traceback
 from georefObject import georef_object
 #from memory_profiler import memory_usage
 import rasterio
@@ -75,7 +76,7 @@ def save_cv2_image_as_geotiff(
         'blockxsize': 512,
         'blockysize': 512
     }
-    
+    print(tfw_param)
     if tfw_param:
         pixel_size_x = tfw_param[0]  # Pixelgröße in X-Richtung
         rotation_y = tfw_param[1]   # Rotation (normalerweise 0)
@@ -96,7 +97,7 @@ def save_cv2_image_as_geotiff(
         if compress == "JPEG":
             meta['photometric'] = 'YCbCr'
             meta['JPEG_QUALITY'] = quality
-
+            
      # Schreibe das GeoTIFF
     with rasterio.open(output_path, 'w', **meta) as dst:
         if count == 1:  # Graustufenbild
@@ -104,6 +105,7 @@ def save_cv2_image_as_geotiff(
         else:  # RGB-Bild
             for i in range(count):
                 dst.write(cv2_image[:, :, i], i + 1)
+    
 
 class MyWindow(QMainWindow):
     def __init__(self):
@@ -615,7 +617,7 @@ class MyWindow(QMainWindow):
             image, imgPoints = cropImage.rotcrop(e.txtParam)
             imgPoint = np.array(imgPoints)
             geoPoint = np.array(geoPoints)
-            worldParam = georef.georef(imgPoint, geoPoint)
+            worldParam = list(georef.georef(imgPoint, geoPoint))
         
         comp = None
         qual = None
@@ -670,13 +672,14 @@ class MyWindow(QMainWindow):
                     change = True
                     ending = ".tif"
                 newFilepath = filename + "_GTIF" + ending
-                save_cv2_image_as_geotiff(image, newFilepath, e.worldParam, compress=comp, quality=qual)
+                save_cv2_image_as_geotiff(image, newFilepath, worldParam, compress=comp, quality=qual)
             
             del image
             e.statusItem.setText("")
         except Exception as error:
             print(error)
             e.statusItem.setText(str(error))
+            traceback.print_exc()  
         self.table.viewport().update()
 
         self.imageLoading = False
