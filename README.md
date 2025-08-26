@@ -1,4 +1,4 @@
-# AutoGeoRef V1.0.2
+# AutoGeoRef V1.0.3
 ## Zweck der Software:
 AutoGeoRef wurde entwickelt, um die Georeferenzierung von Flurkarten zu vereinfachen und zu beschleunigen. Zudem wird die Weiterverarbeitung der Daten vereinfacht.
 ## Funktionsüberblick
