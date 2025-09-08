@@ -611,6 +611,7 @@ class MyWindow(QMainWindow):
             e.statusItem.setText("Bild zuschneiden")
             self.table.viewport().update()
             image = cv2.imread(e.filepath)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             filename, ending = os.path.splitext(newFilepath)
             newFilepath = filename + "_cropped" + ending
             cropImage = Crop_Image.RotCropImage(image)
@@ -654,7 +655,7 @@ class MyWindow(QMainWindow):
                 else:
                     if not isinstance(image, np.ndarray):
                         image = cv2.imread(e.filepath)
-                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     filename, ending = os.path.splitext(newFilepath)
                     if ending == ".geotiff":
                         ending = ".tif"
@@ -666,7 +667,7 @@ class MyWindow(QMainWindow):
                 if not isinstance(image, np.ndarray):
                     print("Lade Bild")
                     image = cv2.imread(e.filepath)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 filename, ending = os.path.splitext(newFilepath)
                 if not ending in ["tif","tiff"]:
                     change = True
