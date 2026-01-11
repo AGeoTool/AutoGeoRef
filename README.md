@@ -1,4 +1,4 @@
-# AutoGeoRef V1.0.3
+# AutoGeoRef
 ## Zweck der Software:
 AutoGeoRef wurde entwickelt, um die Georeferenzierung von Flurkarten zu vereinfachen und zu beschleunigen. Zudem wird die Weiterverarbeitung der Daten vereinfacht.
 ## Funktionsüberblick
@@ -7,7 +7,6 @@ AutoGeoRef bietet folgende Funktionen:
 - Zuschneiden auf die Randlinie der Karte (auch für bereits georeferenzierte Karten)
 - Export und Umwandlung der Daten in World-Datei oder GeoTIFF und Komprimierung der Bilddateien
 - Verarbeitung von großen Datenmengen durch Batch-Verarbeitung
-portable .exe-Datei wodurch keine Installation nötig ist.
 ## Installationsanleitung
 Folgende Systemanforderungen werden empfohlen:
 - CPU: mindestens vier logische Prozessoren
