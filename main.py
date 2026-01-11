@@ -1,3 +1,6 @@
+#conda install conda-forge::cx_freeze==7.2.8 anaconda::pyqt==5.15.11 anaconda::psutil anaconda::pillow
+#pip install numpy==1.26.4 opencv-python==4.10.0.84
+#conda install conda-forge::gdal 
 import sys
 import os
 import psutil
@@ -12,9 +15,10 @@ import shutil
 import traceback
 from georefObject import georef_object
 #from memory_profiler import memory_usage
-import rasterio
+#import rasterio
 #from rasterio.transform import from_origin
-from rasterio.transform import Affine
+#from rasterio.transform import Affine
+#from rasterio.shutil import copy as rio_copy
 from LSD1 import line_segment_detector, image_loader
 from calc_corner import calc_corner
 from PyQt5.QtWidgets import (
@@ -39,74 +43,123 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon
 
-def save_cv2_image_as_geotiff(
-    cv2_image: np.ndarray,
-    output_path: str,
-    tfw_param,
+from osgeo import gdal, osr
+import osgeo
+#print(os.path.join(os.path.dirname(osgeo.__file__), "data", "proj"))
+os.environ["PROJ_LIB"] = os.path.join(os.path.dirname(sys.executable), "proj")
+def save_image_as_tif(
+    image_input,
+    output_tif: str,
+    tfw_param=None,
     crs: str = "EPSG:25832",
-    compress = None,
-    quality = 100,
-    ):
+    compress: str = None,
+    jpeg_quality: int = None
+):
     """
-    Speichert ein OpenCV-Bild als GeoTIFF mit Rasterio.
-
-    :param cv2_image: Das Bild als NumPy-Array (z. B. von OpenCV geladen).
-    :param output_path: Pfad zur Ausgabe-GeoTIFF-Datei.
-    :param tfw_param: Georeferenzierungsparameter.
-    :param crs: Koordinatenreferenzsystem (Standard: EPSG:25832).
-    :param compress: Komprimierungsmethode.
-    :param quality: JPEG-Qualität (nur relevant bei compress="JPEG").
-    """
-    # Sicherstellen, dass das Bild 2D (graustufig) oder 3D (RGB) ist
-    if len(cv2_image.shape) == 2:
-        height, width = cv2_image.shape
-        count = 1  # Ein einzelnes Band
-    elif len(cv2_image.shape) == 3:
-        height, width, count = cv2_image.shape
-    else:
-        raise ValueError("Das Bild muss entweder 2D oder 3D sein (graustufig oder RGB).")
+    Speichert ein JPEG oder cv2/NumPy-Bild als TIFF oder GeoTIFF.
     
-    meta = {
-        'driver': 'GTiff',
-        'height': height,
-        'width': width,
-        'count': count,
-        'dtype': cv2_image.dtype,
-        'tiled': True,
-        'blockxsize': 512,
-        'blockysize': 512
-    }
-    print(tfw_param)
-    if tfw_param:
-        pixel_size_x = tfw_param[0]  # Pixelgröße in X-Richtung
-        rotation_y = tfw_param[1]   # Rotation (normalerweise 0)
-        rotation_x = tfw_param[2]   # Rotation (normalerweise 0)
-        pixel_size_y = tfw_param[3]  # Pixelgröße in Y-Richtung (negativ, da Y nach unten geht)
-        upper_left_x = tfw_param[4]  # X-Koordinate des oberen linken Pixels
-        upper_left_y = tfw_param[5]  # Y-Koordinate des oberen linken Pixels
+    - JPEG als Input: Wird als TIFF mit JPEG-Kompression übernommen
+    - NumPy-Array: Wird als TIFF gespeichert (Kompression wählbar)
+    
+    Georeferenz und CRS sind optional!
 
-        transform = Affine(
-            pixel_size_x, rotation_x, upper_left_x,
-            rotation_y, pixel_size_y, upper_left_y
+    :param image_input: JPEG-Dateipfad ODER NumPy-Array (OpenCV Bild)
+    :param output_tif: Zielpfad
+    :param tfw_param: Optional. [A, D, B, E, C, F] wie .tfw
+    :param crs: Optional. z.B. "EPSG:25832"
+    :param compress: "JPEG", "LZW", "DEFLATE" oder None
+    :param jpeg_quality: nur bei compress="JPEG"
+    """
+    
+    #print(type(image_input))
+    
+    # --- TIFF-Optionen vorbereiten ---
+    options = ["TILED=YES"]
+
+    if compress == "JPEG":
+        options += [
+            "COMPRESS=JPEG",
+            f"JPEG_QUALITY={jpeg_quality}",
+            "PHOTOMETRIC=YCBCR"
+        ]
+    elif compress in ("LZW", "DEFLATE"):
+        options += [f"COMPRESS={compress}", "PREDICTOR=2"]
+    # else: no compression
+
+    # --- 1: Bild-Pfad ---
+    if isinstance(image_input, str):
+        #print("Pfad")
+        src_ds = gdal.Open(image_input, gdal.GA_ReadOnly)
+        if src_ds is None:
+            raise FileNotFoundError(f"Bild konnte nicht geöffnet werden: {image_input}")
+
+        driver = gdal.GetDriverByName("GTiff")
+        if image_input.endswith(".jpg") and compress == None:
+            options += [
+                "COMPRESS=JPEG",
+                "PHOTOMETRIC=YCBCR"
+            ]
+        dst_ds = driver.CreateCopy(output_tif, src_ds, strict=0, options=options)
+
+    # --- 2: NumPy/OpenCV-Array ---
+    elif isinstance(image_input, np.ndarray):
+        #print("Array")
+        height, width = image_input.shape[:2]
+        bands = 1 if image_input.ndim == 2 else image_input.shape[2]
+
+        # Bei Graustufen Photometric anpassen
+        if bands == 1 and compress == "JPEG":
+            options = [opt for opt in options if not opt.startswith("PHOTOMETRIC")]
+            options.append("PHOTOMETRIC=MINISBLACK")
+
+        driver = gdal.GetDriverByName("GTiff")
+        dst_ds = driver.Create(
+            output_tif, width, height, bands, gdal.GDT_Byte, options=options
         )
-        meta['crs'] = crs
-        meta['transform'] = transform
-    
-    if compress != None:
-        meta['compress'] = compress
-        if compress == "JPEG":
-            meta['photometric'] = 'YCbCr'
-            meta['JPEG_QUALITY'] = quality
-            
-     # Schreibe das GeoTIFF
-    with rasterio.open(output_path, 'w', **meta) as dst:
-        if count == 1:  # Graustufenbild
-            dst.write(cv2_image, 1)
-        else:  # RGB-Bild
-            for i in range(count):
-                dst.write(cv2_image[:, :, i], i + 1)
-    
 
+        if bands == 1:
+            dst_ds.GetRasterBand(1).WriteArray(image_input)
+        else:
+            for i in range(bands):
+                dst_ds.GetRasterBand(i + 1).WriteArray(image_input[:, :, i])
+    else:
+        raise TypeError("image_input muss ein Dateipfad (str) oder ein NumPy-Array sein.")
+
+    # --- Georeferenz & CRS optional setzen ---
+    if tfw_param is not None:
+        #print("TFW-Param")
+        A, D, B, E, C, F = tfw_param
+        geotransform = (C, A, B, F, D, E)
+        dst_ds.SetGeoTransform(geotransform)
+    
+    if crs is not None:
+        srs = osr.SpatialReference()
+        srs.SetFromUserInput(crs)
+        dst_ds.SetProjection(srs.ExportToWkt())
+
+    dst_ds.FlushCache()
+    dst_ds = None
+    #print(f"✅ TIFF gespeichert: {output_tif}")
+    """
+    cog = True
+    if cog:
+        cog_output = output_tif.replace(".tif", "_COG.tif")
+        gdal.Translate(
+            cog_output,
+            output_tif,
+            format="COG",
+            creationOptions=[
+                f"COMPRESS={compress if compress else 'LZW'}",
+                f"QUALITY={jpeg_quality}",
+                "LEVEL=9",
+                "NUM_THREADS=ALL_CPUS"
+            ]
+        )
+        print(f"✅ Cloud Optimized GeoTIFF erstellt: {cog_output}")
+    else:
+        print(f"✅ TIFF gespeichert: {output_tif}")
+    """
+    
 class MyWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -142,7 +195,7 @@ class MyWindow(QMainWindow):
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         # Alle Editier-Trigger deaktivieren, um die gesamte Tabelle nicht bearbeitbar zu machen
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        self.table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.table.cellDoubleClicked.connect(self.start_viewer)
         self.setCentralWidget(self.table)
         
@@ -288,7 +341,7 @@ class MyWindow(QMainWindow):
     
     def load_files(self):
         options = QFileDialog.Options()
-        files, _ = QFileDialog.getOpenFileNames(self, "Bilddateien auswählen", "", "Bilddateien (*.png *.jpg *.jpeg *.bmp *.tif);;Alle Dateien (*)", options=options)
+        files, _ = QFileDialog.getOpenFileNames(self, "Bilddateien auswählen", "", "Bilddateien (*.jpg *.jpeg *.tif *.tiff *.geotiff);;Alle Dateien (*)", options=options)
         
         # Überprüfen, ob Dateien ausgewählt wurden
         if files:
@@ -299,7 +352,7 @@ class MyWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Ordner auswählen", "", QFileDialog.ShowDirsOnly)
         if folder:
             # Bilddateien aus dem ausgewählten Ordner laden
-            image_files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff', '.geotiff'))]
+            image_files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.jpeg', '.tif', '.tiff', '.geotiff'))]
             self.add_files_to_table(image_files)
 
     def add_files_to_table(self, files):
@@ -613,6 +666,7 @@ class MyWindow(QMainWindow):
             image = cv2.imread(e.filepath)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             filename, ending = os.path.splitext(newFilepath)
+            ending = ".tif"
             newFilepath = filename + "_cropped" + ending
             cropImage = Crop_Image.RotCropImage(image)
             image, imgPoints = cropImage.rotcrop(e.txtParam)
@@ -628,10 +682,12 @@ class MyWindow(QMainWindow):
             case 1:
                 comp = "LZW"
                 filename, ending = os.path.splitext(newFilepath)
+                ending = ".tif"
                 newFilepath = filename + "_lzw" + ending
             case 2:
                 comp = "DEFLATE"
                 filename, ending = os.path.splitext(newFilepath)
+                ending = ".tif"
                 newFilepath = filename + "_deflate" + ending
             case 3:
                 comp = "JPEG"
@@ -645,6 +701,7 @@ class MyWindow(QMainWindow):
                 e.statusItem.setText("speichere World/Corner")
                 self.table.viewport().update()
                 filename, ending = os.path.splitext(newFilepath)
+                print(ending, filename + "." + ending[1] + ending[-1] + "w", worldParam)
                 georef.write_tfw(filename + "." + ending[1] + ending[-1] + "w", worldParam)
                 georef.write_corner(filename + ".txt", imgPoints, geoPoints, e.txtParam[-1])
             
@@ -659,21 +716,19 @@ class MyWindow(QMainWindow):
                     filename, ending = os.path.splitext(newFilepath)
                     if ending == ".geotiff":
                         ending = ".tif"
-                    save_cv2_image_as_geotiff(image, filename + ending, None , compress=comp, quality=qual)
+                    save_image_as_tif(image, filename + ending, None , compress=comp, jpeg_quality=qual)
             
             if selection[5]:
                 e.statusItem.setText("erstelle GeoTIFF")
                 self.table.viewport().update()
                 if not isinstance(image, np.ndarray):
-                    print("Lade Bild")
-                    image = cv2.imread(e.filepath)
-                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    image = e.filepath
                 filename, ending = os.path.splitext(newFilepath)
                 if not ending in ["tif","tiff"]:
                     change = True
                     ending = ".tif"
                 newFilepath = filename + "_GTIF" + ending
-                save_cv2_image_as_geotiff(image, newFilepath, worldParam, compress=comp, quality=qual)
+                save_image_as_tif(image, newFilepath, worldParam, compress=comp, jpeg_quality=qual)
             
             del image
             e.statusItem.setText("")

@@ -47,8 +47,7 @@ class DrawImage(QGraphicsView):
         self.local_scene.addItem(self.pixMapItem)
         self.setScene(self.local_scene)
 
-        self.setTransformationAnchor(
-            QGraphicsView.AnchorUnderMouse)  # Zoom on mouse position
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # Zoom on mouse position
         self.zoom_factor = 1.1  # Factor for zooming in/out
 
         # Disable dragging by default

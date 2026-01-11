@@ -1,6 +1,7 @@
-import os, rasterio
+import os#, rasterio
 from PyQt5.QtWidgets import QTableWidgetItem
 from PyQt5.QtGui import QIcon
+from osgeo import gdal
 class georef_object():
     def __init__(self, filepath):
         self.filepath = filepath
@@ -67,7 +68,59 @@ class georef_object():
     def update_wc_icon(self):
         self.set_item(self.worldItem, self.worldParam)
         self.set_item(self.txtItem, self.txtParam)
-            
+        
+    def check_geotiff(self):
+        self.lock = True
+        try:
+            # Datei öffnen
+            ds = gdal.Open(self.filepath)
+            if ds is None:
+                self.set_item(self.GTiffFileItem, False)
+                self.update_wc_icon()
+                self.lock = False
+                return
+    
+            # Überprüfen, ob es sich um eine GeoTIFF-Datei handelt
+            driver = ds.GetDriver().ShortName
+            is_geotiff = (driver == "GTiff")
+    
+            # CRS prüfen
+            proj = ds.GetProjection()
+            if not proj:  # Kein CRS 
+                #print("Kein CRS")
+                is_geotiff = False
+    
+            if is_geotiff:
+                # GeoTransform auslesen
+                gt = ds.GetGeoTransform()  # (a, b, c, d, e, f)
+    
+                # Überprüfung, ob UpperLeftX/Y unplausibel sind (wie bei dir)
+                upper_left_x = gt[0]
+                upper_left_y = gt[3]
+                if (upper_left_x, upper_left_y) == (0, 0):
+                    is_geotiff = False
+                else:
+                    # Reihenfolge wie in deinem rasterio-Code:
+                    # worldParam = [a, d, b, e, c, f]
+                    self.worldParam = [
+                        gt[1],  # pixel size x (rasterio: a)
+                        gt[4],  # rotation d (rasterio: d)
+                        gt[2],  # rotation b (rasterio: b)
+                        gt[5],  # pixel size y (rasterio: e)
+                        gt[0],  # upper-left x (rasterio: c)
+                        gt[3]   # upper-left y (rasterio: f)
+                    ]
+    
+            # Ergebnis setzen
+            self.set_item(self.GTiffFileItem, is_geotiff)
+    
+        except Exception as e:
+            self.set_item(self.GTiffFileItem, False)
+            print(f"Fehler beim Verarbeiten der Datei: {e}")
+    
+        self.update_wc_icon()
+        self.lock = False
+    """
     def check_geotiff(self):
         self.lock = True
         try:
@@ -92,7 +145,7 @@ class georef_object():
                         is_geotiff = False
                     else:
                         self.worldParam = [transform.a, transform.d, transform.b, transform.e, transform.c, transform.f]
-                    """
+                    
                     print()
                     print(f"Datei: {self.filepath}")
                     print(f"Driver: {src.driver}")
@@ -101,13 +154,14 @@ class georef_object():
                     print(f"Breite x Höhe: {src.width} x {src.height}")
                     print(f"Anzahl der Bänder: {src.count}")
                     print(f"Auflösung: {src.res}")  # Pixelgröße (X und Y)
-                    """
+                    
                 self.set_item(self.GTiffFileItem, is_geotiff)
         except Exception as e:
             self.set_item(self.GTiffFileItem, False)
             print(f"Fehler beim Verarbeiten der Datei: {e}")
         self.update_wc_icon()
         self.lock = False
+    """
     
     def set_item(self, Item, check):
         if check:

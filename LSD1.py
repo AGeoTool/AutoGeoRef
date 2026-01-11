@@ -4,6 +4,7 @@ from PIL import Image
     
 def image_loader(imgPath):
     image = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE)
+    #cv2.imwrite("grayscale.jpg",image)
     dpi = get_image_dpi(imgPath)[0]
     return(image, dpi)
 
@@ -15,6 +16,7 @@ def get_image_dpi(image_path):
 def line_segment_detector(image, dpi):
     lsd = cv2.createLineSegmentDetector(0)
     rect = []
+    #color_image = cv2.imread("D:/UK/Daten WF/NO06753_0467000_1_UK_00.tif")
     for s in range(4):
         # print()
         # print("Linie:", s)
@@ -23,26 +25,29 @@ def line_segment_detector(image, dpi):
         
         lines = np.reshape(lines,(len(lines),4))
         lines[:,[1,3]] += h/20
+        #print(len(lines))
         #np.savetxt(f'daten{s}.csv', lines, delimiter=';')
         lines = filter_lines(lines, dpi)
+        #print(len(lines))
         lines = rot_lines(lines,s,h,w)
         lines = np.delete(lines, np.s_[4:7],axis=1)
         
         rect.append(lines)
         image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-        
-    #color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    #draw_lines(rect, "All", color_image)
+    
+    #draw_lines(rect, "all", color_image)
+    
     return(rect)
 
 def rot_lines(lines,pos,h,w):
+    #print(h,w)
     match pos:
         case 0:
             pass
         case 1:
             #print(f"Pos {pos}")
             lines[:,[0,1,2,3]] = lines[:,[1,0,3,2]]
-            lines[:,[1,3]] = h - lines[:,[1,3]]
+            lines[:,[1,3]] = w - lines[:,[1,3]]
         case 2:
             #print(f"Pos {pos}")
             lines[:,[0,2]] = w - lines[:,[0,2]]
@@ -64,7 +69,7 @@ def draw_lines(rect,name,image):
             y1 = int(float(l[1]))
             x2 = int(float(l[2]))
             y2 = int(float(l[3]))
-            drawn_img = cv2.line(image, (x1,y1), (x2,y2), (255,255,0))
+            drawn_img = cv2.line(image, (x1,y1), (x2,y2), (0,255,0))
     cv2.imwrite(name+".jpg", drawn_img)
 
 def filter_lines(lines, dpi):
